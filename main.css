@@ -1,0 +1,58 @@
+html,
+body {
+	height: 100%;
+	margin: 0;
+}
+
+#cursorCoordinates {
+	background: white;
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+
+#viewerId {
+	background: white;
+	position: absolute;
+	top: 0;
+	left: 150px;
+}
+
+#viewerIdSubmit {
+	position: absolute;
+	top: 0;
+	left: 300px;
+}
+
+#leftside {
+	background: #fff;
+	padding: 10px;
+
+	position: absolute;
+	top: 30px;
+}
+
+.action-button {
+	font-size: 16px;
+	background-color: transparent;
+	border: 1px solid #d3d3d3;
+	color: #6e6e6e;
+	height: 32px;
+	text-align: center;
+	box-shadow: 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.action-button:hover,
+.action-button:focus {
+	background: #0079c1;
+	color: #e4e4e4;
+}
+
+.active {
+	background: #0079c1;
+	color: #e4e4e4;
+}
+
+.esri-distance-measurement-2d {
+	background-color: #fff;
+}

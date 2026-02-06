@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chickadee Contact Zone</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+
+  <!-- Load the ArcGIS Maps SDK for JavaScript from CDN -->
+  <script src="https://js.arcgis.com/4.34/"></script>
+
+  <!-- Load Map components from CDN -->
+  <script type="module" src="https://js.arcgis.com/4.34/map-components/"></script>
+
+  <!-- Load styles -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.34/esri/css/main.css">
+  <link rel="stylesheet" href="https://js.arcgis.com/4.34/dijit/themes/claro/claro.css">
+  <link rel="stylesheet" href="./main.css" />
+</head>
+<body>
+  <arcgis-map basemap="hybrid" center="-84, 37" zoom="6">
+    <arcgis-zoom slot="top-left"></arcgis-zoom>
+  </arcgis-map>
+
+  <input type="text" id="cursorCoordinates" />
+
+  <input type="text" id="viewerId" placeholder="iNaturalist Username" />
+
+  <button id="viewerIdSubmit" type="button">Load</button>
+
+  <div id="leftside">
+    <button
+      class="action-button esri-icon-measure-line"
+      id="distanceButton"
+      type="button"
+      title="Measure distance between two or more points">Measure</button>
+  </div>
+
+  <script type="module">
+    // Globals
+
+    const inaturalistObservationUrl = "https://www.inaturalist.org/observations/{observation_id}";
+    const inaturalistApiUrl = "https://api.inaturalist.org/v1/";
+    var viewerId = "";
+
+    const contactZonePolygonVertices = [
+        [-98.1958,37.26531],
+        [-96.85546,37.31775],
+        [-94.52636,37.19533],
+        [-93.6914,38.03078],
+        [-92.5708,38.47939],
+        [-91.40625,38.41055],
+        [-90.21972,38.49659],
+        [-89.16503,38.75408],
+        [-87.52807,40.29628],
+        [-85.70434,40.68063],
+        [-84.58374,40.60561],
+        [-82.39746,40.50544],
+        [-81.09008,40.42186],
+        [-80.72753,39.96028],
+        [-80.63964,39.63953],
+        [-80.4309,39.18117],
+        [-81.309814,37.579413],
+        [-82.683105,36.500805],
+        [-83.770752,35.380093],
+        [-83.0896,35.362176],
+        [-80.29907,37.34395],
+        [-78.68408,38.71123],
+        [-77.98095,39.89288],
+        [-77.10205,40.05284],
+        [-76.86035,40.31723],
+        [-75.94093,40.24599],
+        [-74.75372,40.38316],
+        [-74.33349,40.48351],
+        [-74.22912,40.64417],
+        [-74.64111,40.58892],
+        [-74.79492,40.48038],
+        [-74.94873,40.55554],
+        [-75.25085,40.53885],
+        [-75.98693,40.64938],
+        [-76.40991,40.60561],
+        [-77.01416,40.46366],
+        [-78.22265,40.29628],
+        [-78.79394,39.72408],
+        [-79.672852,38.848264],
+        [-79.45312,39.82541],
+        [-79.552,40.22083],
+        [-80.57373,40.85537],
+        [-83.10058,41.09591],
+        [-84.82543,40.9633],
+        [-85.03418,41.28606],
+        [-85.6604,41.09591],
+        [-86.2207,41.01306],
+        [-87.59399,40.75558],
+        [-89.1101,39.43619],
+        [-89.50561,38.97649],
+        [-90.48339,38.65977],
+        [-92.39502,38.78834],
+        [-93.88916,38.32442],
+        [-94.63623,37.43997],
+        [-96.89941,37.68382],
+        [-98.17382,37.54457],
+        [-98.1958,37.26531],
+      ];
+    const viewerIdCookieName = "inaturalist_username";
+
+    // End Globals
+
+    // Start imports
+
+    const [Graphic] = await $arcgis.import(["@arcgis/core/Graphic.js"]);
+    const [GraphicsLayer] = await $arcgis.import(["@arcgis/core/layers/GraphicsLayer.js"]);
+    const [Extent] = await $arcgis.import(["@arcgis/core/geometry/Extent.js"]);
+    const [DistanceMeasurement2D] = await $arcgis.import(["@arcgis/core/widgets/DistanceMeasurement2D.js"]);
+
+    // End imports
+
+    // Start functions
+
+    /**
+     * Add Chickadee contact zone to map
+     *
+     * @return null
+     */
+    async function addContactZoneToMap() {
+      const layerId = "contact-zone";
+
+      let layer = viewElement.map.findLayerById(layerId);
+      if (layer) {
+        viewElement.map.remove(layer);
+      }
+
+      // Configure a polygon's geometry
+      const polygon = {
+        type: "polygon", // autocasts as new Polygon()
+        rings: contactZonePolygonVertices
+      };
+
+      // Create a symbol to define the polygon's style.
+      const polygonFillSymbol = {
+        type: "simple-fill", // autocasts as new SimpleFillSymbol()
+        color: [160, 232, 206, 0.5],
+        outline: {
+          // autocasts as new SimpleLineSymbol()
+          color: [255, 255, 255],
+          width: 1
+        }
+      };
+
+      const polygonGraphic = new Graphic({
+        geometry: polygon,
+        symbol: polygonFillSymbol
+      });
+
+      // Add the graphics to the map's graphics layer.
+      const graphicsLayer = new GraphicsLayer({
+        id: layerId
+      });
+
+      graphicsLayer.addMany([polygonGraphic]);
+      viewElement.map.add(graphicsLayer);
+    }
+
+    /**
+     * Add observations to map
+     *
+     * @param removePreviousGraphics  Remove previous graphics from map
+     *
+     * @return null
+     */
+    async function addObservationsToMap(removePreviousGraphics) {
+      const layerId = "observations";
+
+      let layer = viewElement.map.findLayerById(layerId);
+      if (removePreviousGraphics && layer) {
+        viewElement.map.remove(layer);
+      }
+
+      // Load last 30 observations to ID for viewerId
+      // Some details about this API call:
+      // place_id=97394 which is North America
+      // taxon_id=144351 which is Poecile
+      let response = await fetch(inaturalistApiUrl + "observations?viewer_id=" + viewerId + "&locale=en&ttl=-1&reviewed=false&quality_grade=needs_id&page=1&per_page=30&order_by=id&order=desc&spam=false&place_id=97394&taxon_id=144351", {
+        method: "GET"
+      });
+
+      var graphics = [];
+
+      var min_latitude = null;
+      var max_latitude = null;
+      var min_longitude = null;
+      var max_longitude = null;
+
+      var last_point = [];
+
+      let json = await response.json();
+      for (let result of json.results) {
+        let species_guess = result.species_guess;
+        let id = result.id;
+        let observation_url = inaturalistObservationUrl.replace("{observation_id}", id);
+
+        let geojson = result.geojson;
+        let coordinates = geojson.coordinates;
+        let longitude = coordinates[0];
+        let latitude = coordinates[1];
+
+        if (min_longitude == null || longitude < min_longitude) {
+          min_longitude = longitude;
+        }
+
+        if (max_longitude == null || longitude > max_longitude) {
+          max_longitude = longitude;
+        }
+
+        if (min_latitude == null || latitude < min_latitude) {
+          min_latitude = latitude;
+        }
+
+        if (max_latitude == null || latitude > max_latitude) {
+          max_latitude = latitude;
+        }
+
+        console.log(result);
+        last_point = [longitude, latitude];
+        if (isPointInPolygon(last_point, contactZonePolygonVertices)) {
+          console.log(last_point, result);
+        }
+
+        let [pointGraphic, point, markerSymbol] = addPointToMap(latitude, longitude, [227, 139, 79, 0.8]);
+        pointGraphic.popupTemplate = {
+          title: species_guess,
+          content: () => {
+            return `
+              <div class="custom-popup">
+                <a href="${observation_url}">View on iNaturalist</a>
+              </div>
+            `;
+          },
+        };
+
+        graphics.push(pointGraphic);
+      }
+
+      // Add the graphics to the map's graphics layer.
+      const graphicsLayer = new GraphicsLayer({
+        id: layerId
+      });
+      graphicsLayer.addMany(graphics);
+      viewElement.map.add(graphicsLayer);
+
+      // Get the extent of the GPS points
+      const extent = {
+        type: "extent", // autocasts as new Extent()
+        xmin: min_longitude,
+        xmax: max_longitude,
+        ymin: min_latitude,
+        ymax: max_latitude
+      };
+
+      // Zoom to the extent of the GPS points
+      viewElement.extent = extent;
+    }
+
+    /**
+     * Add a point to the map
+     *
+     * @param latitude          Latitude of point
+     * @param longitude         Longitude of point
+     * @color_array             Array of color to use
+     *
+     * @return array[Graphic, Point, SimpleMarkerSymbol]
+     */
+    function addPointToMap(latitude, longitude, color_array) {
+      const markerSymbol = {
+        type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
+        color: color_array,
+        outline: {
+          color: [255, 255, 255], // autocasts as new SimpleLineSymbol()
+          width: 0
+        }
+      };
+
+      // Configure a point's geometry.
+      const point = {
+        type: "point", // autocasts as new Point()
+        longitude: longitude,
+        latitude: latitude
+      };
+
+      // Create a point graphic with the point geometry and symbol.
+      const pointGraphic = new Graphic({
+        geometry: point,
+        symbol: markerSymbol
+      });
+
+      return [pointGraphic, point, markerSymbol];
+    }
+
+    /**
+     * Determines if a point is in a polygon using simple ray-casting algorithm
+     * Adapted from https://www.baeldung.com/cs/geofencing-point-inside-polygon
+     *
+     * @param point     Point of the form [x, y]
+     * @param polygon   Array of vertices. Assumes that consecutive points are connected with a line
+     *
+     * @return boolean
+     */
+    function isPointInPolygon(point, polygon) {
+      if (polygon.length == 0) {
+        return false;
+      }
+
+      let p_x = point[0];
+      let p_y = point[1];
+
+      var isInside = false;
+      var i = 0;
+      while (i < polygon.length - 2) {
+        let v1 = polygon[i];
+        let v1_x = v1[0];
+        let v1_y = v1[1];
+
+        let v2 = polygon[i + 1];
+        let v2_x = v2[0];
+        let v2_y = v2[1];
+
+        // Check if point's y is above both vertices' y
+        if (p_y > v1_y && p_y > v2_y) {
+          // Do Nothing
+
+        } else if (p_y < v1_y && p_y < v2_y) {
+          // Do Nothing
+
+        } else {
+          // Check if point's ray intersects line segment between vertices
+          let s_x = v1_x + (v2_x - v1_x) * (p_y - v1_y) / (v2_y - v1_y);
+
+          if (p_x > s_x) {
+            isInside = !isInside;
+          }
+        }
+
+        i += 1;
+      }
+
+      return isInside;
+    }
+
+    /**
+     * Retrieve a cookie by its name
+     * @NOTE: Adapted from https://www.w3schools.com/js/js_cookies.asp
+     *
+     * @param name    Name of the cookie
+     *
+     * @return string
+     */
+    function getCookieByName(name) {
+      name = name + "=";
+      let decodedCookie = decodeURIComponent(document.cookie);
+      let ca = decodedCookie.split(';');
+
+      for(let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) == ' ') {
+          c = c.substring(1);
+        }
+
+        if (c.indexOf(name) == 0) {
+          return c.substring(name.length, c.length);
+        }
+      }
+
+      return null;
+    }
+
+    /**
+     * Retrieve latitude and longitude from an event
+     *
+     * @param event   Event to process
+     *
+     * @return array
+     */
+    function getLatLonFromEvent(event) {
+      let point = viewElement.toMap({ x: event.x, y: event.y });
+      let latitude = point.latitude;
+      let longitude = point.longitude;
+
+      return [latitude, longitude];
+    }
+
+    /**
+     * Set active widget
+     *
+     * @param type      Type of widget to activate (only takes "distance" and null)
+     *
+     * @return null
+     */
+    function setActiveWidget(type) {
+      switch (type) {
+        case "distance":
+          distanceMeasurement2D.visible = true;
+          distanceMeasurement2D.viewModel.start();
+          setActiveButton(document.getElementById("distanceButton"));
+          break;
+
+        case null:
+          distanceMeasurement2D.visible = false;
+          break;
+      }
+    }
+
+    /**
+     * Set active button
+     *
+     * @param selectedButton      Button to activate
+     *
+     * @return null
+     */
+    function setActiveButton(selectedButton) {
+      // focus the view to activate keyboard shortcuts for sketching
+      viewElement.view.focus();
+      let elements = document.getElementsByClassName("active");
+      for (let i = 0; i < elements.length; i++) {
+        elements[i].classList.remove("active");
+      }
+
+      if (selectedButton) {
+        selectedButton.classList.add("active");
+      }
+    }
+
+    /**
+     * Set a cookie
+     *
+     * @param name                Name for cookie
+     * @param value               Value for cookie
+     * @param numDaysUntilExpire  Number of days cookie is valid for
+     *
+     * @return null
+     */
+    function setCookie(name, value, numDaysUntilExpire) {
+      var expires = "";
+
+      if (numDaysUntilExpire) {
+        var date = new Date();
+        date.setTime(date.getTime() + (numDaysUntilExpire * 24 * 60 * 60 * 1000));
+        expires = "expires=" + date.toUTCString();
+      }
+
+      document.cookie = name + "=" + (value || "") + "; " + expires + "; ";
+      console.log("Set cookie to `" + (value || "") + "`");
+    }
+
+    // End functions
+
+    // Wait for the component to be ready before adding graphics.
+    const viewElement = document.querySelector("arcgis-map");
+    await viewElement.viewOnReady();
+
+    // To add the DistanceMeasurement2D widget to the map
+    let distanceMeasurement2D = new DistanceMeasurement2D({
+      view: viewElement.view,
+      visible: false,
+      unit: "miles"
+    });
+    viewElement.view.ui.add(distanceMeasurement2D, "top-right");
+
+    // event listener for distance measurements
+    document.getElementById("distanceButton").addEventListener("click", function () {
+      setActiveWidget(null);
+      if (!this.classList.contains("active")) {
+        setActiveWidget("distance");
+      } else {
+        setActiveButton(null);
+      }
+    });
+
+    // Show cursor coordinates
+    viewElement.view.on("pointer-move", (event) => {
+      let [latitude, longitude] = getLatLonFromEvent(event);
+      document.getElementById("cursorCoordinates").value = latitude.toFixed(6).toString() + ", " + longitude.toFixed(6).toString();
+    });
+
+    // Find iNaturalist user on submit
+    document.getElementById("viewerIdSubmit").addEventListener("click", async (event) => {
+      let viewerIdValue = document.getElementById("viewerId").value;
+      let response = await fetch(inaturalistApiUrl + "users/" + viewerIdValue, {
+        method: "GET"
+      });
+
+      if (!response.ok) {
+        alert("User does not exist");
+        return;
+      }
+
+      viewerId = viewerIdValue;
+      setCookie(viewerIdCookieName, viewerIdValue, 365);
+      addObservationsToMap(true);
+    });
+
+    // Reload the viewerId textbox
+    let viewerIdValue = getCookieByName(viewerIdCookieName);
+    if (viewerIdValue) {
+      viewerId = viewerIdValue;
+      document.getElementById("viewerId").value = viewerIdValue;
+    }
+
+    addContactZoneToMap();
+    addObservationsToMap(true);
+  </script>
+</body>
+</html>
