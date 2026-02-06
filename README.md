@@ -1,4 +1,4 @@
-[View the Map](https://deefinder200.github.io/poecile-map/)
+[View the Map](https://deefinder200.github.io/poecile-map/map.html)
 
 # Overview
 * A simple visualization of the contact zone between Black-capped Chickadees and Carolina Chickadees. Designed to be just an html and css file.
