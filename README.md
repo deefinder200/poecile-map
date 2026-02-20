@@ -11,7 +11,6 @@
 
 # TODOs
 * Add input for an iNaturalist URL that will pull an observation's location and place it on the map
-* Update popups with more features - picture, better species name support in title, etc
+* Update popups with more features - picture, etc
 * UX improvements - hide zoom button under measure button, load more observations, hide reviewed observations, etc
 * Update contact zone for 2025 by adding 5km to northern most points - ideally add a slider to control contact zone for a given year
-* Color code dots based on whether the observation has pictures and/or audio

@@ -103,6 +103,12 @@
       ];
     const viewerIdCookieName = "inaturalist_username";
 
+    const ObservationType = {
+      1: "photos",
+      2: "sounds",
+      3: "mixed"
+    }
+
     // End Globals
 
     // Start imports
@@ -194,7 +200,11 @@
 
       let json = await response.json();
       for (let result of json.results) {
-        let species_guess = result.species_guess;
+        var species_guess = result.species_guess;
+        if (result.identifications.length > 0) {
+          species_guess = result.identifications[result.identifications.length - 1].taxon.preferred_common_name;
+        }
+
         let id = result.id;
         let observation_url = inaturalistObservationUrl.replace("{observation_id}", id);
 
@@ -225,7 +235,18 @@
           console.log(last_point, result);
         }
 
-        let [pointGraphic, point, markerSymbol] = addPointToMap(latitude, longitude, [227, 139, 79, 0.8]);
+        // Determine color for point
+        let observation_type = getObservationType(result);
+
+        var color_array = [227, 139, 79, 0.8]; // Defaults to picture colors
+        if (observation_type == 2) {
+          color_array = [79, 168, 227, 0.8];
+
+        } else if (observation_type == 3) {
+          color_array = [158, 226, 79, 0.8];
+        }
+
+        let [pointGraphic, point, markerSymbol] = addPointToMap(latitude, longitude, color_array);
         pointGraphic.popupTemplate = {
           title: species_guess,
           content: () => {
@@ -293,6 +314,30 @@
       });
 
       return [pointGraphic, point, markerSymbol];
+    }
+
+    /**
+     * Determine type of observation based on data
+     *
+     * @param observation_data      JSON observation object
+     *
+     * @return ObservationType
+     */
+    function getObservationType(observation_data) {
+      let num_sounds = observation_data.observation_sounds.length;
+      let num_photos = observation_data.observation_photos.length;
+
+      if (num_photos > 0 && num_sounds == 0) {
+        return 1;
+      }
+
+      if (num_photos == 0 && num_sounds > 0) {
+        return 2;
+      }
+
+      if (num_photos > 0 && num_sounds > 0) {
+        return 3;
+      }
     }
 
     /**
