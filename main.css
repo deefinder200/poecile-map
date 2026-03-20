@@ -4,37 +4,44 @@ body {
 	margin: 0;
 }
 
+.arcgis-zoom.arcgis-button {
+	display: none !important; /* Hide the zoom buttons */
+}
+
 #cursorCoordinates {
 	background: white;
 	position: absolute;
 	top: 0;
-	left: 0;
+	right: 0;
+}
+
+#viewerIdContainer {
+	position: absolute;
+	top: 0px;
+	left: 0px;
+}
+
+#specificObservationUrlContainer {
+	position: absolute;
+	top: 25px;
+	left: 0px;
 }
 
 #viewerId {
 	background: white;
-	position: absolute;
-	top: 0;
-	left: 150px;
-}
-
-#viewerIdSubmit {
-	position: absolute;
-	top: 0;
-	left: 300px;
 }
 
 #leftside {
-	background: #fff;
+	background: transparent;
 	padding: 10px;
 
 	position: absolute;
-	top: 30px;
+	top: 50px;
 }
 
 .action-button {
 	font-size: 16px;
-	background-color: transparent;
+	background-color: #fff;
 	border: 1px solid #d3d3d3;
 	color: #6e6e6e;
 	height: 32px;
@@ -49,7 +56,7 @@ body {
 }
 
 .active {
-	background: #0079c1;
+	background: #00c13a;
 	color: #e4e4e4;
 }
 

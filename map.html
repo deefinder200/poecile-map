@@ -18,14 +18,20 @@
 </head>
 <body>
   <arcgis-map basemap="hybrid" center="-84, 37" zoom="6">
-    <arcgis-zoom slot="top-left"></arcgis-zoom>
+    <arcgis-zoom slot="bottom-left"></arcgis-zoom>
   </arcgis-map>
 
   <input type="text" id="cursorCoordinates" />
 
-  <input type="text" id="viewerId" placeholder="iNaturalist Username" />
+  <div id="viewerIdContainer">
+    <input type="text" id="viewerId" placeholder="iNaturalist Username" />
+    <button id="viewerIdSubmit" type="button">Load</button>
+  </div>
 
-  <button id="viewerIdSubmit" type="button">Load</button>
+  <div id="specificObservationUrlContainer">
+    <input type="text" id="specificObservationUrl" placeholder="Specific Observation to Add" />
+    <button id="specificObservationUrlSubmit" type="button">Add</button>
+  </div>
 
   <div id="leftside">
     <button
@@ -33,6 +39,14 @@
       id="distanceButton"
       type="button"
       title="Measure distance between two or more points">Measure</button>
+
+    <br><br>
+
+    <button
+      class="action-button"
+      id="clearButton"
+      type="button"
+      title="Clear Observations on Map">Clear Map</button>
   </div>
 
   <script type="module">
@@ -40,6 +54,9 @@
 
     const inaturalistObservationUrl = "https://www.inaturalist.org/observations/{observation_id}";
     const inaturalistApiUrl = "https://api.inaturalist.org/v1/";
+
+    const observationsLayerId = "observations"; // Layer for Observations
+
     var viewerId = "";
 
     const contactZonePolygonVertices = [
@@ -174,9 +191,7 @@
      * @return null
      */
     async function addObservationsToMap(removePreviousGraphics) {
-      const layerId = "observations";
-
-      let layer = viewElement.map.findLayerById(layerId);
+      let layer = viewElement.map.findLayerById(observationsLayerId);
       if (removePreviousGraphics && layer) {
         viewElement.map.remove(layer);
       }
@@ -200,14 +215,6 @@
 
       let json = await response.json();
       for (let result of json.results) {
-        var species_guess = result.species_guess;
-        if (result.identifications.length > 0) {
-          species_guess = result.identifications[result.identifications.length - 1].taxon.preferred_common_name;
-        }
-
-        let id = result.id;
-        let observation_url = inaturalistObservationUrl.replace("{observation_id}", id);
-
         let geojson = result.geojson;
         let coordinates = geojson.coordinates;
         let longitude = coordinates[0];
@@ -235,35 +242,13 @@
           console.log(last_point, result);
         }
 
-        // Determine color for point
-        let observation_type = getObservationType(result);
-
-        var color_array = [227, 139, 79, 0.8]; // Defaults to picture colors
-        if (observation_type == 2) {
-          color_array = [79, 168, 227, 0.8];
-
-        } else if (observation_type == 3) {
-          color_array = [158, 226, 79, 0.8];
-        }
-
-        let [pointGraphic, point, markerSymbol] = addPointToMap(latitude, longitude, color_array);
-        pointGraphic.popupTemplate = {
-          title: species_guess,
-          content: () => {
-            return `
-              <div class="custom-popup">
-                <a href="${observation_url}">View on iNaturalist</a>
-              </div>
-            `;
-          },
-        };
-
+        let pointGraphic = getGraphicForMapFromObservation(result);
         graphics.push(pointGraphic);
       }
 
       // Add the graphics to the map's graphics layer.
       const graphicsLayer = new GraphicsLayer({
-        id: layerId
+        id: observationsLayerId
       });
       graphicsLayer.addMany(graphics);
       viewElement.map.add(graphicsLayer);
@@ -282,7 +267,56 @@
     }
 
     /**
-     * Add a point to the map
+     * Prepares an observation's graphic for the map
+     *
+     * @param observation     Observation to use
+     *
+     * @return Graphic
+     */
+    function getGraphicForMapFromObservation(observation, color_array) {
+      var species_guess = observation.species_guess;
+      if (observation.identifications.length > 0) {
+        species_guess = observation.identifications[observation.identifications.length - 1].taxon.preferred_common_name;
+      }
+
+      let id = observation.id;
+      let observation_url = inaturalistObservationUrl.replace("{observation_id}", id);
+
+      let geojson = observation.geojson;
+      let coordinates = geojson.coordinates;
+      let longitude = coordinates[0];
+      let latitude = coordinates[1];
+
+      // Determine color for point if it wasn't added by the user
+      if (!color_array) {
+        let observation_type = getObservationType(observation);
+
+        color_array = [227, 139, 79, 0.8]; // Defaults to picture colors
+        if (observation_type == 2) {
+          color_array = [79, 168, 227, 0.8];
+
+        } else if (observation_type == 3) {
+          color_array = [158, 226, 79, 0.8];
+        }
+      }
+
+      let [pointGraphic, point, markerSymbol] = getPointForMap(latitude, longitude, color_array);
+      pointGraphic.popupTemplate = {
+        title: species_guess,
+        content: () => {
+          return `
+            <div class="custom-popup">
+              <a href="${observation_url}">View on iNaturalist</a>
+            </div>
+          `;
+        },
+      };
+
+      return pointGraphic;
+    }
+
+    /**
+     * Prepares a point for the map
      *
      * @param latitude          Latitude of point
      * @param longitude         Longitude of point
@@ -290,7 +324,7 @@
      *
      * @return array[Graphic, Point, SimpleMarkerSymbol]
      */
-    function addPointToMap(latitude, longitude, color_array) {
+    function getPointForMap(latitude, longitude, color_array) {
       const markerSymbol = {
         type: "simple-marker", // autocasts as new SimpleMarkerSymbol()
         color: color_array,
@@ -324,8 +358,16 @@
      * @return ObservationType
      */
     function getObservationType(observation_data) {
-      let num_sounds = observation_data.observation_sounds.length;
-      let num_photos = observation_data.observation_photos.length;
+      var num_sounds = 0;
+      var num_photos = 0;
+
+      if (observation_data.observation_sounds) {
+        num_sounds = observation_data.observation_sounds.length;
+      }
+
+      if (observation_data.observation_photos) {
+        num_photos = observation_data.observation_photos.length;
+      }
 
       if (num_photos > 0 && num_sounds == 0) {
         return 1;
@@ -519,6 +561,17 @@
       }
     });
 
+    // event listener for clear map button
+    document.getElementById("clearButton").addEventListener("click", function () {
+      if (confirm("Are you sure you want to clear the map?")) {
+        let layer = viewElement.map.findLayerById(observationsLayerId);
+
+        if (layer) {
+          viewElement.map.remove(layer);
+        }
+      }
+    });
+
     // Show cursor coordinates
     viewElement.view.on("pointer-move", (event) => {
       let [latitude, longitude] = getLatLonFromEvent(event);
@@ -540,6 +593,48 @@
       viewerId = viewerIdValue;
       setCookie(viewerIdCookieName, viewerIdValue, 365);
       addObservationsToMap(true);
+    });
+
+    // Locate an observation on submit
+     document.getElementById("specificObservationUrlSubmit").addEventListener("click", async (event) => {
+      let observationIdValue = document.getElementById("specificObservationUrl").value;
+
+      let observationIdValuePieces = observationIdValue.split("/");
+      let observationId = observationIdValuePieces.length > 0 ? observationIdValuePieces[observationIdValuePieces.length - 1] : observationIdValuePieces;
+
+      let response = await fetch(inaturalistApiUrl + "observations/" + observationId, {
+        method: "GET"
+      });
+
+      if (!response.ok) {
+        alert("Observation does not exist");
+        return;
+      }
+
+      let json = await response.json();
+      if (!json.results || json.results.length == 0) {
+        alert("Observation does not exist");
+        return;
+      }
+
+      let result = json.results[0];
+      console.log(result);
+
+      // Set a specific color for manually added observations
+      let color_array = [255, 123, 155, 0.8];
+      let pointGraphic = getGraphicForMapFromObservation(result, color_array);
+
+      // Add the graphics to the map's graphics layer.
+      var layer = viewElement.map.findLayerById(observationsLayerId);
+      if (!layer) {
+        layer = new GraphicsLayer({
+          id: observationsLayerId
+        });
+
+        viewElement.map.add(layer);
+      }
+
+      layer.addMany([pointGraphic]);
     });
 
     // Reload the viewerId textbox
