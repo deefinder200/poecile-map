@@ -126,7 +126,10 @@
       3: "mixed"
     }
 
+    const loadContactZoneLocationHashKey = "loadchickadeecontactzone";
+    const loadCurrentObservationsLocationHashKey = "loadcurrent";
     const observationIdLocationHashKey = "observationid";
+    const viewerIdLocationHashKey = "viewerid";
 
     // End Globals
 
@@ -247,10 +250,9 @@
         viewElement.map.remove(layer);
       }
 
-      // Load last 30 observations to ID for viewerId
-      // Some details about this API call:
-      // place_id=97394 which is North America
-      // taxon_id=144351 which is Poecile
+      // Loads last 30 observations to ID for viewerId
+      // place_id=97394 is North America
+      // taxon_id=144351 is Poecile
       let response = await fetch(inaturalistApiUrl + "observations?viewer_id=" + viewerId + "&locale=en&ttl=-1&reviewed=false&quality_grade=needs_id&page=1&per_page=30&order_by=id&order=desc&spam=false&place_id=97394&taxon_id=144351", {
         method: "GET"
       });
@@ -675,6 +677,11 @@
         if (layer) {
           viewElement.map.remove(layer);
         }
+
+        document.getElementById("viewerId").value = "";
+        document.getElementById("specificObservationUrl").value = "";
+
+        window.location.hash = "";
       }
     });
 
@@ -696,9 +703,11 @@
         return;
       }
 
-      viewerId = viewerIdValue;
-      setCookie(viewerIdCookieName, viewerIdValue, 365);
       addObservationsToMap(true);
+
+      // Add viewerId to location.hash
+      setCookie(viewerIdCookieName, viewerIdValue, 365);
+      updateLocationHash(viewerIdLocationHashKey, viewerIdValue);
     });
 
     // Locate an observation on submit
@@ -710,27 +719,40 @@
 
       addObservationToMap(observationId);
 
+      // Add observationId to location.hash
       let currentHash = parseHash();
       if (currentHash[observationIdLocationHashKey] && currentHash[observationIdLocationHashKey].trim() != "") {
         observationId = currentHash[observationIdLocationHashKey].trim() + "," + observationId;
       }
 
-      // Add observationId to location.hash
       updateLocationHash(observationIdLocationHashKey, observationId);
     });
 
-    // Reload the viewerId textbox
-    let viewerIdValue = getCookieByName(viewerIdCookieName);
-    if (viewerIdValue) {
+    // Load things up from the hash and cookies
+    let currentHash = parseHash();
+    var viewerIdValue = getCookieByName(viewerIdCookieName);
+
+    if (currentHash[viewerIdLocationHashKey]) {
+      viewerIdValue = currentHash[viewerIdLocationHashKey];
+    }
+
+    if (viewerIdValue && viewerIdValue.toString().trim() != "") {
       viewerId = viewerIdValue;
       document.getElementById("viewerId").value = viewerIdValue;
     }
 
-    await addContactZoneToMap();
-    await addObservationsToMap(true);
+
+    var loadContactZone = currentHash[loadContactZoneLocationHashKey] ? currentHash[loadContactZoneLocationHashKey] == "true" : true;
+    if (loadContactZone) {
+      await addContactZoneToMap();
+    }
+
+    var loadCurrentObservations = currentHash[loadCurrentObservationsLocationHashKey] ? currentHash[loadCurrentObservationsLocationHashKey] == "true" : true;
+    if (viewerId != "" || loadCurrentObservations) {
+      await addObservationsToMap(true);
+    }
 
     // Check if observationId was passed in location.hash
-    let currentHash = parseHash();
     if (currentHash[observationIdLocationHashKey] && currentHash[observationIdLocationHashKey].trim() != "") {
       let observationIds = currentHash[observationIdLocationHashKey].trim().split(",");
 
