@@ -60,7 +60,7 @@
     var viewerId = "";
 
     const contactZonePolygonVertices = [
-        [-98.1958,37.26531],
+        [-98.1958,37.26531], // Left Low Edge
         [-96.85546,37.31775],
         [-94.52636,37.19533],
         [-93.6914,38.03078],
@@ -87,8 +87,8 @@
         [-76.86035,40.31723],
         [-75.94093,40.24599],
         [-74.75372,40.38316],
-        [-74.33349,40.48351],
-        [-74.22912,40.64417],
+        [-74.33349,40.48351], // Right Low edge
+        [-74.22912,40.64417], // Right High Edge
         [-74.64111,40.58892],
         [-74.79492,40.48038],
         [-74.94873,40.55554],
@@ -115,9 +115,12 @@
         [-93.88916,38.32442],
         [-94.63623,37.43997],
         [-96.89941,37.68382],
-        [-98.17382,37.54457],
-        [-98.1958,37.26531],
+        [-98.17382,37.54457], // Left Top Edge
+        [-98.1958,37.26531], // Left Low Edge
       ];
+    let newContactZonePolygonVertices = []; // Stores latest contact zone based on movement of 1km per year (0.6213712 miles)
+    let differenceContactZonePolygonVertices = []; // Stores difference between lateste contact zone and original
+
     const viewerIdCookieName = "inaturalist_username";
 
     const ObservationType = {
@@ -145,14 +148,15 @@
     // Start functions
 
     /**
-     * Add Chickadee contact zone to map
+     * Add Chickadee contact zones to map (old and new)
      *
      * @return null
      */
-    async function addContactZoneToMap() {
-      const layerId = "contact-zone";
+    async function addContactZonesToMap() {
+      const layerId1 = "old-contact-zone";
+      const layerId2 = "new-contact-zone";
 
-      let layer = viewElement.map.findLayerById(layerId);
+      let layer = viewElement.map.findLayerById(layerId1);
       if (layer) {
         viewElement.map.remove(layer);
       }
@@ -179,13 +183,107 @@
         symbol: polygonFillSymbol
       });
 
-      // Add the graphics to the map's graphics layer.
-      const graphicsLayer = new GraphicsLayer({
-        id: layerId
+      // Configure a polygon's geometry
+      const newPolygon = {
+        type: "polygon", // autocasts as new Polygon()
+        rings: differenceContactZonePolygonVertices
+      };
+
+      // Create a symbol to define the polygon's style.
+      const newPolygonFillSymbol = {
+        type: "simple-fill", // autocasts as new SimpleFillSymbol()
+        color: [255, 124, 124, 0.5],
+        outline: {
+          // autocasts as new SimpleLineSymbol()
+          color: [255, 255, 255],
+          width: 1
+        }
+      };
+
+      const newPolygonGraphic = new Graphic({
+        geometry: newPolygon,
+        symbol: newPolygonFillSymbol
       });
 
-      graphicsLayer.addMany([polygonGraphic]);
-      viewElement.map.add(graphicsLayer);
+      // Add the graphics to the map's graphics layer.
+      const graphicsLayer1 = new GraphicsLayer({
+        id: layerId1
+      });
+
+      graphicsLayer1.addMany([polygonGraphic, newPolygonGraphic]);
+      const graphicsLayer2 = new GraphicsLayer({
+        id: layerId2
+      });
+      graphicsLayer2.addMany([polygonGraphic, newPolygonGraphic]);
+
+      viewElement.map.add(graphicsLayer1);
+      viewElement.map.add(graphicsLayer2);
+
+      const legendDiv = document.createElement("div");
+      legendDiv.style.cssText = "background: rgb(255, 255, 255); padding: 10px; border-radius: 5px; box-shadow: 0 0 15px rgba(0,0,0,0.2);";
+      legendDiv.innerHTML = `
+        <div style="margin-top: 8px;">
+          <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 10px; height: 10px; background: rgb(160, 232, 206, 0.5); margin-right: 8px;"></div>
+            <span>Contact Zone</span>
+          </div>
+
+          <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 10px; height: 10px; background: rgb(255, 124, 124, 0.5); margin-right: 8px;"></div>
+            <span>Expansion</span>
+          </div>
+
+          <div style="display:flex; justify-content: center;"><strong>Observations</strong></div>
+
+          <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 10px; height: 10px; background: rgb(227, 139, 79, 0.8); margin-right: 8px;"></div>
+            <span>Visual</span>
+          </div>
+
+          <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 10px; height: 10px; background: rgb(79, 168, 227, 0.8); margin-right: 8px;"></div>
+            <span>Audio</span>
+          </div>
+
+          <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 10px; height: 10px; background: rgb(158, 226, 79, 0.8); margin-right: 8px;"></div>
+            <span>Mixed</span>
+          </div>
+
+          <div style="display: flex; align-items: center; margin: 5px 0;">
+            <div style="width: 10px; height: 10px; background: rgb(255, 123, 155, 0.8); margin-right: 8px;"></div>
+            <span>Manually Added</span>
+          </div>
+        </div>
+      `;
+
+      viewElement.view.ui.add(legendDiv, "bottom-right");
+    }
+
+    /**
+     * Add miles north of a latitude
+     *
+     * @param num_miles     Number of miles to add
+     * @param latitude      Latitude to add distance to
+     *
+     * @return number
+     */
+    function addMilesNorthOfLatitude(num_miles, latitude) {
+      return latitude + num_miles / 69.0;
+    }
+
+    /**
+     * Add miles west of a longitude
+     *
+     * @param num_miles     Number of miles to add
+     * @param longitude     Longitude to add distance to
+     * @param latitude      Latitude of point
+     *
+     * @return number
+     */
+    function addMilesEastOfLongitude(num_miles, longitude, latitude) {
+      //return longitude + num_miles / (69.0 * Math.cos(latitude));
+      return longitude + num_miles / (69.0);
     }
 
     /**
@@ -347,6 +445,69 @@
     }
 
     /**
+     * Calculate the new contact zone vertices (1 km per year north - Found in McQuillan et al. 2015)
+     *
+     * @return null
+     */
+    function calculateNewContactZoneVertices() {
+      let original_year = 2020;
+      let current_year = (new Date().getFullYear());
+      let num_kms_difference = current_year - original_year;
+      let num_miles_difference = num_kms_difference * 0.6213712;
+
+      newContactZonePolygonVertices = [];
+
+      var i = 0;
+      while (i < contactZonePolygonVertices.length) {
+        let point = contactZonePolygonVertices[i].slice();
+        let new_longitude = point[0] + 0.0;
+        let new_latitude = point[1] + 0.0;
+
+        // For all north-side points, we add miles north
+        if (i > 27 && i < (contactZonePolygonVertices.length - 1)) {
+          new_latitude = addMilesNorthOfLatitude(num_miles_difference, new_latitude);
+        }
+
+        // For all west-side points, we add miles west
+        if ([0, (contactZonePolygonVertices.length - 1), (contactZonePolygonVertices.length - 2)].includes(i)) {
+          new_longitude = addMilesEastOfLongitude(-1 * num_miles_difference, new_longitude, new_latitude);
+        }
+
+        // For all east-side points, we add miles east
+        if ([27, 28].includes(i)) {
+          new_longitude = addMilesEastOfLongitude(num_miles_difference, new_longitude, new_latitude);
+        }
+
+        newContactZonePolygonVertices.push([new_longitude, new_latitude])
+        i += 1;
+      }
+
+      // Manually adjust certain points (eyeballed it)
+      newContactZonePolygonVertices[39] = [-79.439355, 39.825614]; // Ohiopyle State Park
+      newContactZonePolygonVertices[38] = [-79.642113, 38.903575]; // Hwy 33 near Meadows
+
+      // Create a different between the newContactZonePolygonVertices and contactZonePolygonVertices
+      differenceContactZonePolygonVertices = [];
+
+      // Create upper half
+      var i = newContactZonePolygonVertices.length - 1;
+      while (i >= 27) {
+        differenceContactZonePolygonVertices.push(newContactZonePolygonVertices[i]);
+        i -= 1;
+      }
+
+      // Create bottom half
+      i = 27;
+      while (i < contactZonePolygonVertices.length) {
+        differenceContactZonePolygonVertices.push(contactZonePolygonVertices[i]);
+        i += 1;
+      }
+
+      // Connect the two
+      differenceContactZonePolygonVertices.push(newContactZonePolygonVertices[0])
+    }
+
+    /**
      * Prepares an observation's graphic for the map
      *
      * @param observation     Observation to use
@@ -372,10 +533,10 @@
         let observation_type = getObservationType(observation);
 
         color_array = [227, 139, 79, 0.8]; // Defaults to picture colors
-        if (observation_type == 2) {
+        if (observation_type == 2) { // Audio
           color_array = [79, 168, 227, 0.8];
 
-        } else if (observation_type == 3) {
+        } else if (observation_type == 3) { // Mixed
           color_array = [158, 226, 79, 0.8];
         }
       }
@@ -741,10 +902,10 @@
       document.getElementById("viewerId").value = viewerIdValue;
     }
 
-
-    var loadContactZone = currentHash[loadContactZoneLocationHashKey] ? currentHash[loadContactZoneLocationHashKey] == "true" : true;
-    if (loadContactZone) {
-      await addContactZoneToMap();
+    var loadContactZones = currentHash[loadContactZoneLocationHashKey] ? currentHash[loadContactZoneLocationHashKey] == "true" : true;
+    if (loadContactZones) {
+      calculateNewContactZoneVertices();
+      await addContactZonesToMap();
     }
 
     var loadCurrentObservations = currentHash[loadCurrentObservationsLocationHashKey] ? currentHash[loadCurrentObservationsLocationHashKey] == "true" : true;
