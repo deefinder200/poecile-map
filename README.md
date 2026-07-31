@@ -10,6 +10,10 @@
 
 [2] https://www.sibleyguides.com/bird-info/black-capped-chickadee/black-capped-carolina-chickadee/
 
+# Contact Zone Colors
+* green: Original contact zone
+* pink: Expansion of contact zone
+
 # Observation Colors
 * orange: Observation with picture
 * blue: Observation with audio
@@ -28,4 +32,3 @@ Uses URL to control initial load of map i.e. `map.html#loadcurrent=false&observa
 # TODOs
 * Update popups with more features - picture, sound, etc.
 * UX improvements - load more observations, hide reviewed observations, etc.
-* Update contact zone for 2025 by adding 5km to northern most points - ideally add a slider to control contact zone for a given year
